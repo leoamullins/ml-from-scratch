@@ -50,9 +50,25 @@ See `demo.ipynb` for the training curve and decision boundary.
 
 `model.py` implements two support vector machine classifiers, both solved as quadratic programs via `cvxopt`.
 
-- `SVMHardMargin` — solves the hard-margin primal QP (`min ½‖w‖²` subject to `yᵢ(w·xᵢ + b) ≥ 1`) directly. Assumes the classes are linearly separable.
-- `SVMSoftMargin` — adds slack variables and a `C` penalty to the primal QP, allowing some margin violations for non-separable data.
-- Both expose `fit(X, y)`, which builds and solves the QP, and `predict(X)`, which returns `sign(w · X + b)`.
+A linear classifier predicts via `sign(w · x + b)`. The distance from a point to the separating hyperplane `w · x + b = 0` is `(w · x + b) / ‖w‖`, so scaling `w` and `b` up shrinks that distance without changing any prediction. SVMs pin this scale freedom down by requiring the closest points to sit at distance exactly `1/‖w‖`, i.e. `yᵢ(w · xᵢ + b) ≥ 1`. The margin — the gap between the two classes — is then `2/‖w‖`, so maximizing the margin is the same as minimizing `‖w‖`, which is what both classifiers below solve for.
+
+- `SVMHardMargin` solves the primal QP
+
+  $$
+  \min \frac{1}{2} \| \textbf{w} \|_2 ^ 2 \hspace{10pt} \text{s.t.} \hspace{10pt} y_i(\textbf{w} x_i + b) \geq 1
+  $$
+
+  directly. This assumes the two classes are linearly separable — with no separating hyperplane, no `(w, b)` satisfies every constraint and the QP is infeasible.
+
+- `SVMSoftMargin` handles non-separable data by adding a per-point slack $\xi_i$ that lets a point violate its margin, penalized by a cost `C`:
+
+ $$
+  \min \frac{1}{2} \| \textbf{w} \|_2 ^ 2 + C \sum_{i=1}^N \xi_i
+ $$
+
+  `C` trades off margin width against how many points are allowed to be misclassified or fall inside the margin: large `C` penalizes slack heavily (behaving closer to hard-margin), small `C` tolerates more violations for a wider margin.
+
+Both formulations are quadratic in `w` with linear inequality constraints, so `fit(X, y)` casts them into the standard QP form `min ½zᵀPz + qᵀz s.t. Gz ≤ h` — with `z = [w, b]` for the hard-margin case and `z = [w, b, ξ]` for the soft-margin case — and hands them to `cvxopt.solvers.qp`. `predict(X)` then returns `sign(w · X + b)`.
 
 See `demo.ipynb` for the fitted decision boundary and margin.
 
