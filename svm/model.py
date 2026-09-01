@@ -84,3 +84,94 @@ class SVMSoftMargin:
 
     def predict(self, X):
         return np.sign(X @ self.w + self.b)
+
+
+class SVM:
+    def __init__(self, C=1.0, gamma=1.0):
+        self.C = C
+        self.alpha = None
+        self.gamma = gamma
+
+    def fit_linear(self, X, y):
+        n, d = X.shape  # d is n_features and n is n_samples, X is (n, d) matrix
+        X = X.astype(np.float64)
+        y = y.astype(np.float64)  # cvx compatible
+
+        P = np.diag(y) @ X @ X.T @ np.diag(y)
+
+        q = -np.ones(n)
+
+        G = np.vstack([-np.eye(n), np.eye(n)])
+        h = np.concatenate([np.zeros(n), self.C * np.ones(n)])
+
+        A = y.reshape(1, -1)
+        b = 0.0
+
+        P = cvx.matrix(P)
+        q = cvx.matrix(q)
+        G = cvx.matrix(G)
+        h = cvx.matrix(h)
+        A = cvx.matrix(A)
+        b = cvx.matrix(b)
+
+        cvx.solvers.options["show_progress"] = False
+        sol = cvx.solvers.qp(P, q, G, h, A, b)
+
+        if sol["status"] != "optimal":
+            raise ValueError(f"QP did not converge: status = {sol['status']}")
+
+        self.alpha = np.array(sol["x"]).flatten()
+
+        margin_sv = (self.alpha > 1e-5) & (self.alpha < self.C - 1e-5)
+
+        self.w = ((self.alpha * y)[:, None] * X).sum(axis=0)
+        self.b = np.mean(y[margin_sv] - X[margin_sv] @ self.w)
+
+    def predict_linear(self, X):
+        return np.sign(X @ self.w + self.b)
+
+    def fit_RBF(self, X, y):
+        n, d = X.shape  # d is n_features and n is n_samples, X is (n, d) matrix
+        X = X.astype(np.float64)
+        y = y.astype(np.float64)
+        self.X_train = X
+        self.y_train = y
+
+        K = self._rbf(X, X)
+        P = np.diag(y) @ K @ np.diag(y)
+
+        q = -np.ones(n)
+
+        G = np.vstack([-np.eye(n), np.eye(n)])
+        h = np.concatenate([np.zeros(n), self.C * np.ones(n)])
+
+        A = y.reshape(1, -1)
+        b = 0.0
+
+        P = cvx.matrix(P)
+        q = cvx.matrix(q)
+        G = cvx.matrix(G)
+        h = cvx.matrix(h)
+        A = cvx.matrix(A)
+        b = cvx.matrix(b)
+
+        cvx.solvers.options["show_progress"] = False
+        sol = cvx.solvers.qp(P, q, G, h, A, b)
+
+        if sol["status"] != "optimal":
+            raise ValueError(f"QP did not converge: status = {sol['status']}")
+
+        self.alpha = np.array(sol["x"]).flatten()
+        margin_sv = (self.alpha > 1e-5) & (self.alpha < self.C - 1e-5)
+
+        decision = K @ (self.alpha * y)
+        self.b = np.mean(y[margin_sv] - decision[margin_sv])
+
+    def predict_RBF(self, X):
+        K = self._rbf(X, self.X_train)  # (m, n): test-vs-train
+        scores = K @ (self.alpha * self.y_train) + self.b
+        return np.sign(scores)
+
+    def _rbf(self, A, B):
+        sq = (A**2).sum(1)[:, None] + (B**2).sum(1)[None, :] - 2 * A @ B.T
+        return np.exp(-self.gamma * sq)

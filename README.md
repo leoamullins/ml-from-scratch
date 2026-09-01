@@ -7,7 +7,7 @@ Classic machine learning algorithms implemented from scratch in Python (NumPy/pa
 - [`linear-regression/`](linear-regression/) — linear & polynomial regression
 - [`decision-tree-ID3/`](decision-tree-ID3/) — decision tree classifier (ID3)
 - [`logistic-regression/`](logistic-regression/) — binary logistic regression
-- [`svm/`](svm/) — hard-margin & soft-margin support vector machines
+- [`svm/`](svm/) — hard-margin & soft-margin support vector machines, plus a dual-form solver with a kernel trick (linear & RBF)
 
 ## linear-regression
 
@@ -70,7 +70,33 @@ A linear classifier predicts via `sign(w · x + b)`. The distance from a point t
 
 Both formulations are quadratic in `w` with linear inequality constraints, so `fit(X, y)` casts them into the standard QP form `min ½zᵀPz + qᵀz s.t. Gz ≤ h` — with `z = [w, b]` for the hard-margin case and `z = [w, b, ξ]` for the soft-margin case — and hands them to `cvxopt.solvers.qp`. `predict(X)` then returns `sign(w · X + b)`.
 
-See `demo.ipynb` for the fitted decision boundary and margin.
+### Dual problem & the kernel trick
+
+`SVM` solves the same soft-margin problem as `SVMSoftMargin`, but in its **dual** form rather than the primal. Starting from the primal Lagrangian and eliminating `w`, `b`, and the slack variables via the KKT conditions leaves a QP purely in terms of the Lagrange multipliers `α`:
+
+$$
+\max_{\alpha} \sum_{i=1}^N \alpha_i - \frac12 \sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_j y_i y_j (x_i \cdot x_j) \hspace{10pt} \text{s.t.} \hspace{10pt} 0 \leq \alpha_i \leq C, \hspace{10pt} \sum_{i=1}^N \alpha_i y_i = 0
+$$
+
+The dual touches the data only through the dot products $x_i \cdot x_j$, never through an $x_i$ on its own. That's what enables the **kernel trick**: replace the dot product with any kernel function $K(x_i, x_j)$ that behaves like an inner product in some (possibly much higher-dimensional) feature space, and the same QP fits a nonlinear boundary without ever forming that feature space explicitly.
+
+- `fit_linear(X, y)` solves the dual with the plain linear kernel $K(x_i, x_j) = x_i \cdot x_j$. It's negated and cast into `cvxopt`'s `min ½zᵀPz + qᵀz s.t. Gz ≤ h, Az = b` form, with `z = α`, `P = diag(y) (XXᵀ) diag(y)`, the box constraint `0 ≤ α ≤ C` as `G, h`, and `Σ αᵢyᵢ = 0` as `A, b`. Once solved, `w = Σᵢ αᵢ yᵢ xᵢ`, and `b` is recovered by averaging `yᵢ − w · xᵢ` over the margin support vectors — points with `0 < αᵢ < C`, which by complementary slackness sit exactly on the margin. `predict_linear(X)` then returns `sign(w · X + b)`, same as the primal solvers above.
+
+- `fit_RBF(X, y)` swaps in the **RBF (Gaussian) kernel**
+
+  $$
+  K(x_i, x_j) = \exp\left(-\gamma \lVert x_i - x_j \rVert^2\right)
+  $$
+
+  computed by `_rbf` via the expansion $\lVert x_i - x_j \rVert^2 = \lVert x_i \rVert^2 + \lVert x_j \rVert^2 - 2\, x_i \cdot x_j$, which avoids looping over pairs. This kernel implicitly maps each point into an infinite-dimensional feature space, so `w` can no longer be formed explicitly — everything has to stay expressed in terms of `α`, `y`, and the kernel. `predict_RBF(X)` therefore evaluates the decision function directly against the stored training points (the support vectors):
+
+  $$
+  f(x) = \text{sign}\left(\sum_{i=1}^N \alpha_i y_i K(x, x_i) + b\right)
+  $$
+
+  `γ` controls how tightly each support vector's influence is localized: small `γ` gives smooth, near-linear boundaries; large `γ` lets the boundary hug individual points, risking overfitting.
+
+See `demo.ipynb` for the fitted decision boundary and margin (hard/soft-margin, linear-kernel cases), and a concentric-circles example where the RBF kernel carves out a closed nonlinear boundary that the linear dual solver can't fit.
 
 ## Usage
 
