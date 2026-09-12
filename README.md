@@ -93,10 +93,11 @@ See [`notebooks/tree_demo.ipynb`](notebooks/tree_demo.ipynb) for the canonical "
 
 ### Multinomial Regression
 
- This method computes the loss as regularised multinomial cross entropy
- $$
+This method computes the loss as regularised multinomial cross entropy
+$$
 L = -\frac{1}{n} \sum_{i = 1}^{n} \sum_{k = 1}^{K} y_{ik} \log(p_{ik})
- $$
+$$
+
 with batch gradient descent. This outputs logits in `_scores` for each class and then the `_softmax` function is used in the core loop.
 
 See [`notebooks/logistic_regression_demo.ipynb`](notebooks/logistic_regression_demo.ipynb) for the training curve and decision boundary.
@@ -117,9 +118,9 @@ A linear classifier predicts via `sign(w · x + b)`. The distance from a point t
 
 - `SVMSoftMargin` handles non-separable data by adding a per-point slack $\xi_i$ that lets a point violate its margin, penalized by a cost `C`:
 
- $$
+$$
   \min \frac{1}{2} \| \textbf{w} \|_2 ^ 2 + C \sum_{i=1}^N \xi_i
- $$
+$$
 
   `C` trades off margin width against how many points are allowed to be misclassified or fall inside the margin: large `C` penalizes slack heavily (behaving closer to hard-margin), small `C` tolerates more violations for a wider margin.
 
