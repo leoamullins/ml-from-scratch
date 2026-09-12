@@ -21,4 +21,5 @@ plot = ["matplotlib>=3.8"]
 notebooks = [
     "mlscratch[plot]",
     "ipykernel",
+    "scikit-learn",
 ]

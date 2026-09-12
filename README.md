@@ -1,6 +1,6 @@
 # ml-from-scratch
 
-Classic machine learning algorithms implemented from scratch in Python (NumPy/pandas only, no scikit-learn). They're packaged as an installable library, `mlscratch`, and each one has a Jupyter notebook demo.
+Classic machine learning algorithms implemented from scratch in Python with NumPy and pandas, plus `cvxopt` to solve the SVM quadratic programs. They're packaged as an installable library, `mlscratch`, and each one has a Jupyter notebook demo. The demos use scikit-learn only for example datasets and accuracy scores; the library itself doesn't depend on it.
 
 ## Project structure
 
@@ -8,7 +8,7 @@ Classic machine learning algorithms implemented from scratch in Python (NumPy/pa
 ml-from-scratch/
 ├── mlscratch/                      # the library
 │   ├── linear_regression.py        # LinearRegression: linear & polynomial regression
-│   ├── logistic_regression.py      # LogisticRegression: binary logistic regression
+│   ├── logistic_regression.py      # LogisticRegression, MultinomialRegression: binary & multiclass
 │   ├── svm.py                      # SVMHardMargin, SVMSoftMargin, SVM: primal & dual (kernel) SVMs
 │   ├── tree.py                     # DecisionTreeID3: decision tree classifier (ID3)
 │   ├── metrics.py                  # placeholder, not implemented yet
@@ -34,7 +34,7 @@ pip install -e ".[notebooks]"
 The `-e` (editable) install makes `import mlscratch` load directly from the `mlscratch/` folder, so source edits are picked up after a kernel restart without reinstalling. The optional extras are:
 
 - `plot`: matplotlib. The core library doesn't need it; only `DecisionTreeID3.plot()` uses it.
-- `notebooks`: `plot` plus `ipykernel`, which the demo notebooks need.
+- `notebooks`: `plot` plus `ipykernel` and scikit-learn, which the demo notebooks need.
 
 Use `pip install -e .` for the core library alone (NumPy, pandas, cvxopt).
 
@@ -60,7 +60,7 @@ To run the demos, open any notebook in [`notebooks/`](notebooks/) in VS Code or 
 
 `mlscratch/linear_regression.py` implements `LinearRegression`, fitted via the closed-form normal equation rather than gradient descent:
 
-```
+```text
 θ = (XᵀX)⁻¹Xᵀy
 ```
 
@@ -78,6 +78,8 @@ See [`notebooks/linear_regression_demo.ipynb`](notebooks/linear_regression_demo.
 - **Information gain** (`gain`) measures how much splitting on a feature reduces entropy.
 - **`id3`** recursively builds the tree: at each step it picks the feature with the highest information gain (`best_gain`), splits the data by that feature's values, and recurses. Recursion stops when a subset is pure (a `Leaf`) or there are no features left to split on (falls back to the majority class).
 - The tree is made of two node types: `Node` (an internal split on a feature) and `Leaf` (a class label).
+- `DecisionTreeID3(features, target)` takes a dict mapping each feature to every value it can take, so the tree has a branch for every value even if a value never reaches a node during training; that branch predicts the majority class at that node.
+- `fit(data)` takes a single table (anything `pd.DataFrame` accepts) holding the feature columns and the `target` column, rather than separate `X` and `y`. `predict(row)` classifies one row, given as a dict or a pandas row.
 - `plot()` gives a simple matplotlib visualisation of the fitted tree (requires the `plot` extra).
 
 See [`notebooks/tree_demo.ipynb`](notebooks/tree_demo.ipynb) for the canonical "play tennis" example.
@@ -96,18 +98,18 @@ See [`notebooks/tree_demo.ipynb`](notebooks/tree_demo.ipynb) for the canonical "
 This method computes the loss as regularised multinomial cross entropy
 
 $$
-L = -\frac{1}{n} \sum_{i = 1}^{n} \sum_{k = 1}^{K} y_{ik} \log(p_{ik})
+L = -\frac{1}{n} \sum_{i = 1}^{n} \sum_{k = 1}^{K} y_{ik} \log(p_{ik}) + \frac{\lambda}{2} \lVert W \rVert^2
 $$
 
-with batch gradient descent. This outputs logits in `_scores` for each class and then the `_softmax` function is used in the core loop.
+where λ is the `lam` hyperparameter, and minimises it with batch gradient descent. This outputs logits in `_scores` for each class and then the `_softmax` function is used in the core loop.
 
-See [`notebooks/logistic_regression_demo.ipynb`](notebooks/logistic_regression_demo.ipynb) for the training curve and decision boundary.
+See [`notebooks/logistic_regression_demo.ipynb`](notebooks/logistic_regression_demo.ipynb) for a binary example on a synthetic 2D dataset and a multinomial example on the iris dataset.
 
 ## Support vector machines
 
-`mlscratch/svm.py` implements two support vector machine classifiers, both solved as quadratic programs via `cvxopt`.
+`mlscratch/svm.py` implements three support vector machine classifiers, all solved as quadratic programs via `cvxopt`: `SVMHardMargin` and `SVMSoftMargin` solve the primal problem, and `SVM` solves the dual, which allows kernels.
 
-A linear classifier predicts via `sign(w · x + b)`. The distance from a point to the separating hyperplane `w · x + b = 0` is `(w · x + b) / ‖w‖`, so scaling `w` and `b` up shrinks that distance without changing any prediction. SVMs pin this scale freedom down by requiring the closest points to sit at distance exactly `1/‖w‖`, i.e. `yᵢ(w · xᵢ + b) ≥ 1`. The margin — the gap between the two classes — is then `2/‖w‖`, so maximizing the margin is the same as minimizing `‖w‖`, which is what both classifiers below solve for.
+A linear classifier predicts via `sign(w · x + b)`. The distance from a point to the separating hyperplane `w · x + b = 0` is `(w · x + b) / ‖w‖`, so scaling `w` and `b` up shrinks that distance without changing any prediction. SVMs pin this scale freedom down by requiring the closest points to sit at distance exactly `1/‖w‖`, i.e. `yᵢ(w · xᵢ + b) ≥ 1`. The margin — the gap between the two classes — is then `2/‖w‖`, so maximizing the margin is the same as minimizing `‖w‖`, which is what the two primal classifiers below solve for.
 
 - `SVMHardMargin` solves the primal QP
 
@@ -125,7 +127,7 @@ A linear classifier predicts via `sign(w · x + b)`. The distance from a point t
 
   `C` trades off margin width against how many points are allowed to be misclassified or fall inside the margin: large `C` penalizes slack heavily (behaving closer to hard-margin), small `C` tolerates more violations for a wider margin.
 
-Both formulations are quadratic in `w` with linear inequality constraints, so `fit(X, y)` casts them into the standard QP form `min ½zᵀPz + qᵀz s.t. Gz ≤ h` — with `z = [w, b]` for the hard-margin case and `z = [w, b, ξ]` for the soft-margin case — and hands them to `cvxopt.solvers.qp`. `predict(X)` then returns `sign(w · X + b)`.
+Both formulations are quadratic in `w` with linear inequality constraints, so `fit(X, y)` casts them into the standard QP form `min ½zᵀPz + qᵀz s.t. Gz ≤ h` — with `z = [w, b]` for the hard-margin case and `z = [w, b, ξ]` for the soft-margin case — and hands them to `cvxopt.solvers.qp`. `predict(X)` then returns `sign(w · X + b)`. Both classes expect labels of −1 and +1, so convert 0/1 labels first, e.g. with `np.where(y == 1, 1, -1)`.
 
 ### Dual problem & the kernel trick
 
@@ -137,23 +139,31 @@ $$
 
 The dual touches the data only through the dot products $x_i \cdot x_j$, never through an $x_i$ on its own. That's what enables the **kernel trick**: replace the dot product with any kernel function $K(x_i, x_j)$ that behaves like an inner product in some (possibly much higher-dimensional) feature space, and the same QP fits a nonlinear boundary without ever forming that feature space explicitly.
 
-- `fit_linear(X, y)` solves the dual with the plain linear kernel $K(x_i, x_j) = x_i \cdot x_j$. It's negated and cast into `cvxopt`'s `min ½zᵀPz + qᵀz s.t. Gz ≤ h, Az = b` form, with `z = α`, `P = diag(y) (XXᵀ) diag(y)`, the box constraint `0 ≤ α ≤ C` as `G, h`, and `Σ αᵢyᵢ = 0` as `A, b`. Once solved, `w = Σᵢ αᵢ yᵢ xᵢ`, and `b` is recovered by averaging `yᵢ − w · xᵢ` over the margin support vectors — points with `0 < αᵢ < C`, which by complementary slackness sit exactly on the margin. `predict_linear(X)` then returns `sign(w · X + b)`, same as the primal solvers above.
+`SVM(kernel="linear", C=1.0, gamma=1.0)` follows the same `fit` / `predict` workflow as the rest of the library:
 
-- `fit_RBF(X, y)` swaps in the **RBF (Gaussian) kernel**
+- `fit(X, y)` accepts any two class labels (0/1, say) and maps them to −1/+1 internally, since the dual objective and the constraint `Σ αᵢyᵢ = 0` both assume ±1. It raises a `ValueError` if `y` doesn't contain exactly two classes, then solves the dual with the chosen kernel (see below).
+- `decision_function(X)` returns the raw score `f(x)`. Its sign is the predicted class; it is 0 on the decision boundary and ±1 on the edges of the margin. Use it when you need a continuous score, e.g. for ROC-AUC or for plotting the boundary.
+- `predict(X)` maps the sign of `f(x)` back to the original labels: the larger of the two labels (in sorted order) where `f(x) ≥ 0`, the smaller one otherwise.
+
+The `kernel` argument picks between:
+
+- `"linear"` (solved by `fit_linear`): the plain dot product $K(x_i, x_j) = x_i \cdot x_j$. The dual is negated and cast into `cvxopt`'s `min ½zᵀPz + qᵀz s.t. Gz ≤ h, Az = b` form, with `z = α`, `P = diag(y) (XXᵀ) diag(y)`, the box constraint `0 ≤ α ≤ C` as `G, h`, and `Σ αᵢyᵢ = 0` as `A, b`. Once solved, `w = Σᵢ αᵢ yᵢ xᵢ`, and `b` is recovered by averaging `yᵢ − w · xᵢ` over the margin support vectors — points with `0 < αᵢ < C`, which by complementary slackness sit exactly on the margin. The score is then `f(x) = w · x + b`, the same as the primal solvers above.
+
+- `"rbf"` (solved by `fit_RBF`): the **RBF (Gaussian) kernel**
 
   ```math
   K(x_i, x_j) = \exp\left(-\gamma \lVert x_i - x_j \rVert^2\right)
   ```
 
-  computed by `_rbf` via the expansion $\lVert x_i - x_j \rVert^2 = \lVert x_i \rVert^2 + \lVert x_j \rVert^2 - 2\thinspace x_i \cdot x_j$, which avoids looping over pairs. This kernel implicitly maps each point into an infinite-dimensional feature space, so `w` can no longer be formed explicitly — everything has to stay expressed in terms of `α`, `y`, and the kernel. `predict_RBF(X)` therefore evaluates the decision function directly against the stored training points (the support vectors):
+  computed by `_rbf` via the expansion $\lVert x_i - x_j \rVert^2 = \lVert x_i \rVert^2 + \lVert x_j \rVert^2 - 2\thinspace x_i \cdot x_j$, which avoids looping over pairs. This kernel implicitly maps each point into an infinite-dimensional feature space, so `w` can no longer be formed explicitly — everything has to stay expressed in terms of `α`, `y`, and the kernel. `b` is recovered as in the linear case, with the kernel sum in place of `w · xᵢ`, and `decision_function(X)` evaluates the score directly against the stored training points:
 
   ```math
-  f(x) = \text{sign}\left(\sum_{i=1}^N \alpha_i y_i K(x, x_i) + b\right)
+  f(x) = \sum_{i=1}^N \alpha_i y_i K(x, x_i) + b
   ```
 
-  `γ` controls how tightly each support vector's influence is localized: small `γ` gives smooth, near-linear boundaries; large `γ` lets the boundary hug individual points, risking overfitting.
+  Only the support vectors (`αᵢ > 0`) contribute to the sum. `γ` controls how tightly each support vector's influence is localized: small `γ` gives smooth, near-linear boundaries; large `γ` lets the boundary hug individual points, risking overfitting.
 
-See [`notebooks/svm_demo.ipynb`](notebooks/svm_demo.ipynb) for the fitted decision boundary and margin (hard/soft-margin, linear-kernel cases), and a concentric-circles example where the RBF kernel carves out a closed nonlinear boundary that the linear dual solver can't fit.
+See [`notebooks/svm_demo.ipynb`](notebooks/svm_demo.ipynb) for the fitted decision boundary and margin (hard/soft-margin, linear-kernel cases), and a concentric-circles example where the RBF kernel carves out a closed nonlinear boundary that `kernel="linear"` can't fit.
 
 ## Status
 

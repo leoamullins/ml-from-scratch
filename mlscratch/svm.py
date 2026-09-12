@@ -87,10 +87,28 @@ class SVMSoftMargin:
 
 
 class SVM:
-    def __init__(self, C=1.0, gamma=1.0):
+    def __init__(self, kernel="linear", C=1.0, gamma=1.0):
         self.C = C
+        self.kernel = kernel
         self.alpha = None
         self.gamma = gamma
+
+    def fit(self, X, y):
+        self.classes_ = np.unique(y)
+        if len(self.classes_) != 2:
+            raise ValueError("SVM needs exaclty 2 classes.")
+        y_pm = np.where(y == self.classes_[1], 1.0, -1.0)
+        if self.kernel == "linear":
+            self.fit_linear(X, y_pm)
+        elif self.kernel == "rbf":
+            self.fit_RBF(X, y_pm)
+        else:
+            raise ValueError(f"Unknown kernel: {self.kernel}")
+
+    def decision_function(self, X):
+        if self.kernel == "linear":
+            return X @ self.w + self.b
+        return self._rbf(X, self.X_train) @ (self.alpha * self.y_train) + self.b
 
     def fit_linear(self, X, y):
         n, d = X.shape  # d is n_features and n is n_samples, X is (n, d) matrix
@@ -126,9 +144,6 @@ class SVM:
 
         self.w = ((self.alpha * y)[:, None] * X).sum(axis=0)
         self.b = np.mean(y[margin_sv] - X[margin_sv] @ self.w)
-
-    def predict_linear(self, X):
-        return np.sign(X @ self.w + self.b)
 
     def fit_RBF(self, X, y):
         n, d = X.shape  # d is n_features and n is n_samples, X is (n, d) matrix
@@ -167,10 +182,10 @@ class SVM:
         decision = K @ (self.alpha * y)
         self.b = np.mean(y[margin_sv] - decision[margin_sv])
 
-    def predict_RBF(self, X):
-        K = self._rbf(X, self.X_train)  # (m, n): test-vs-train
-        scores = K @ (self.alpha * self.y_train) + self.b
-        return np.sign(scores)
+    def predict(self, X):
+        return np.where(
+            self.decision_function(X) >= 0, self.classes_[1], self.classes_[0]
+        )
 
     def _rbf(self, A, B):
         sq = (A**2).sum(1)[:, None] + (B**2).sum(1)[None, :] - 2 * A @ B.T
