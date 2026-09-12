@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mlscratch"
+version = "0.1.0"
+description = "Classic machine learning algorithms implemented from scratch with NumPy."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "leoamullins" }]
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "cvxopt>=1.3",
+]
+
+[project.optional-dependencies]
+# DecisionTreeID3.plot() imports matplotlib lazily, so it's only needed for plotting.
+plot = ["matplotlib>=3.8"]
+notebooks = [
+    "mlscratch[plot]",
+    "ipykernel",
+]

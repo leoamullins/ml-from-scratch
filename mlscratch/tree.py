@@ -91,7 +91,9 @@ class DecisionTreeID3:
         Inputs:
             data - Complete data set of the form (x_i, y_i) where x_i is a feature vector, and y_i is a target value for each data point i.
         """
-        self.data = pd.DataFrame(data, columns=list(self.features.keys()) + [self.target])
+        self.data = pd.DataFrame(
+            data, columns=list(self.features.keys()) + [self.target]
+        )
         self.data = self.data.rename(columns={self.target: "label"})
         self.root = self.id3(self.data, self.features)
         return self
@@ -101,7 +103,7 @@ class DecisionTreeID3:
 
     def plot(self, ax=None, figsize=(10, 6)):
         """
-        Visualizes the fitted tree with matplotlib.
+        Visualises the fitted tree with matplotlib.
         """
         import matplotlib.pyplot as plt
 
@@ -128,19 +130,34 @@ class DecisionTreeID3:
         def draw(node):
             x, y = positions[id(node)]
             if isinstance(node, Leaf):
-                ax.annotate(str(node.label), (x, y), ha="center", va="center",
-                            bbox=dict(boxstyle="round", fc="lightgreen"))
+                ax.annotate(
+                    str(node.label),
+                    (x, y),
+                    ha="center",
+                    va="center",
+                    bbox=dict(boxstyle="round", fc="lightgreen"),
+                )
                 return
 
-            ax.annotate(node.feature, (x, y), ha="center", va="center",
-                         bbox=dict(boxstyle="round", fc="lightblue"))
+            ax.annotate(
+                node.feature,
+                (x, y),
+                ha="center",
+                va="center",
+                bbox=dict(boxstyle="round", fc="lightblue"),
+            )
 
             for value, child in node.children.items():
                 cx, cy = positions[id(child)]
                 ax.plot([x, cx], [y, cy], color="gray", zorder=0)
-                ax.annotate(str(value), ((x + cx) / 2, (y + cy) / 2),
-                            ha="center", va="center", fontsize=8,
-                            bbox=dict(boxstyle="round", fc="white", ec="none"))
+                ax.annotate(
+                    str(value),
+                    ((x + cx) / 2, (y + cy) / 2),
+                    ha="center",
+                    va="center",
+                    fontsize=8,
+                    bbox=dict(boxstyle="round", fc="white", ec="none"),
+                )
                 draw(child)
 
         draw(self.root)

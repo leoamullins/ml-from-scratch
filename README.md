@@ -1,17 +1,64 @@
 # ml-from-scratch
 
-Classic machine learning algorithms implemented from scratch in Python (NumPy/pandas only, no scikit-learn), with a Jupyter notebook demoing each one.
+Classic machine learning algorithms implemented from scratch in Python (NumPy/pandas only, no scikit-learn). They're packaged as an installable library, `mlscratch`, and each one has a Jupyter notebook demo.
 
-## Contents
+## Project structure
 
-- [`linear-regression/`](linear-regression/) — linear & polynomial regression
-- [`decision-tree-ID3/`](decision-tree-ID3/) — decision tree classifier (ID3)
-- [`logistic-regression/`](logistic-regression/) — binary logistic regression
-- [`svm/`](svm/) — hard-margin & soft-margin support vector machines, plus a dual-form solver with a kernel trick (linear & RBF)
+```text
+ml-from-scratch/
+├── mlscratch/                      # the library
+│   ├── linear_regression.py        # LinearRegression: linear & polynomial regression
+│   ├── logistic_regression.py      # LogisticRegression: binary logistic regression
+│   ├── svm.py                      # SVMHardMargin, SVMSoftMargin, SVM: primal & dual (kernel) SVMs
+│   ├── tree.py                     # DecisionTreeID3: decision tree classifier (ID3)
+│   ├── metrics.py                  # placeholder, not implemented yet
+│   └── model_selection.py          # placeholder, not implemented yet
+├── notebooks/                      # one demo notebook per algorithm
+│   ├── linear_regression_demo.ipynb
+│   ├── logistic_regression_demo.ipynb
+│   ├── svm_demo.ipynb
+│   └── tree_demo.ipynb
+└── pyproject.toml                  # package metadata & dependencies
+```
 
-## linear-regression
+## Installation
 
-`model.py` implements `LinearRegression`, fitted via the closed-form normal equation rather than gradient descent:
+Requires Python 3.10+. From the repo root:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[notebooks]"
+```
+
+The `-e` (editable) install makes `import mlscratch` load directly from the `mlscratch/` folder, so source edits are picked up after a kernel restart without reinstalling. The optional extras are:
+
+- `plot`: matplotlib. The core library doesn't need it; only `DecisionTreeID3.plot()` uses it.
+- `notebooks`: `plot` plus `ipykernel`, which the demo notebooks need.
+
+Use `pip install -e .` for the core library alone (NumPy, pandas, cvxopt).
+
+## Usage
+
+Each algorithm lives in its own module:
+
+```python
+import numpy as np
+from mlscratch.linear_regression import LinearRegression
+
+X = np.array([1.0, 2.0, 3.0, 4.0])
+y = np.array([3.1, 4.9, 7.2, 8.8])
+
+model = LinearRegression()
+model.fit(X, y)
+model.predict(np.array([5.0]))  # array([10.85])
+```
+
+To run the demos, open any notebook in [`notebooks/`](notebooks/) in VS Code or another Jupyter frontend, and select the `.venv` kernel. To use Jupyter in the browser, run `pip install jupyterlab` and then `jupyter lab notebooks/`.
+
+## Linear regression
+
+`mlscratch/linear_regression.py` implements `LinearRegression`, fitted via the closed-form normal equation rather than gradient descent:
 
 ```
 θ = (XᵀX)⁻¹Xᵀy
@@ -21,34 +68,34 @@ Classic machine learning algorithms implemented from scratch in Python (NumPy/pa
 - `predict(X)` — applies the learned weights.
 - `fit_poly(X, y, degree)` / `predict_poly(X)` — expands `X` into polynomial features (`x, x², …, x^degree`) via `poly_features`, then reuses the same linear solver. This is how polynomial regression is achieved without a separate algorithm: it's still linear regression, just on transformed features.
 
-See `demo.ipynb` for a straight-line fit and a cubic fit.
+See [`notebooks/linear_regression_demo.ipynb`](notebooks/linear_regression_demo.ipynb) for a straight-line fit and a cubic fit.
 
-## decision-tree-ID3
+## Decision tree (ID3)
 
-`model.py` implements `DecisionTreeID3`, a decision tree classifier for categorical features built using Quinlan's ID3 algorithm.
+`mlscratch/tree.py` implements `DecisionTreeID3`, a decision tree classifier for categorical features built using Quinlan's ID3 algorithm.
 
 - **Entropy** (`_entropy`) measures the impurity of a set of labels.
 - **Information gain** (`gain`) measures how much splitting on a feature reduces entropy.
 - **`id3`** recursively builds the tree: at each step it picks the feature with the highest information gain (`best_gain`), splits the data by that feature's values, and recurses. Recursion stops when a subset is pure (a `Leaf`) or there are no features left to split on (falls back to the majority class).
 - The tree is made of two node types: `Node` (an internal split on a feature) and `Leaf` (a class label).
-- `plot()` gives a simple matplotlib visualisation of the fitted tree.
+- `plot()` gives a simple matplotlib visualisation of the fitted tree (requires the `plot` extra).
 
-See `demo.ipynb` for the canonical "play tennis" example.
+See [`notebooks/tree_demo.ipynb`](notebooks/tree_demo.ipynb) for the canonical "play tennis" example.
 
-## logistic-regression
+## Logistic regression
 
-`model.py` implements `LogisticRegression`, a binary classifier fitted by maximizing log-likelihood via batch gradient descent.
+`mlscratch/logistic_regression.py` implements `LogisticRegression`, a binary classifier fitted by maximizing log-likelihood via batch gradient descent.
 
 - `sigmoid(z)` — the logistic function, squashes `z` into `(0, 1)`.
 - `gradient_descent_log_likelihood` — runs gradient descent for `num_steps`, updating `w` and `b` at each step (`update_w_and_b_log_likelihood`) and logging binary cross-entropy loss.
 - `fit(X, y)` — learns `w` and `b` from training data, storing the loss history.
 - `predict(X)` — applies the sigmoid to `w · X + b` and thresholds at `positive_threshold`.
 
-See `demo.ipynb` for the training curve and decision boundary.
+See [`notebooks/logistic_regression_demo.ipynb`](notebooks/logistic_regression_demo.ipynb) for the training curve and decision boundary.
 
-## svm
+## Support vector machines
 
-`model.py` implements two support vector machine classifiers, both solved as quadratic programs via `cvxopt`.
+`mlscratch/svm.py` implements two support vector machine classifiers, both solved as quadratic programs via `cvxopt`.
 
 A linear classifier predicts via `sign(w · x + b)`. The distance from a point to the separating hyperplane `w · x + b = 0` is `(w · x + b) / ‖w‖`, so scaling `w` and `b` up shrinks that distance without changing any prediction. SVMs pin this scale freedom down by requiring the closest points to sit at distance exactly `1/‖w‖`, i.e. `yᵢ(w · xᵢ + b) ≥ 1`. The margin — the gap between the two classes — is then `2/‖w‖`, so maximizing the margin is the same as minimizing `‖w‖`, which is what both classifiers below solve for.
 
@@ -96,16 +143,8 @@ The dual touches the data only through the dot products $x_i \cdot x_j$, never t
 
   `γ` controls how tightly each support vector's influence is localized: small `γ` gives smooth, near-linear boundaries; large `γ` lets the boundary hug individual points, risking overfitting.
 
-See `demo.ipynb` for the fitted decision boundary and margin (hard/soft-margin, linear-kernel cases), and a concentric-circles example where the RBF kernel carves out a closed nonlinear boundary that the linear dual solver can't fit.
-
-## Usage
-
-Each folder is self-contained — `cd` into it and open the notebook:
-
-```
-cd linear-regression && jupyter notebook demo.ipynb
-```
+See [`notebooks/svm_demo.ipynb`](notebooks/svm_demo.ipynb) for the fitted decision boundary and margin (hard/soft-margin, linear-kernel cases), and a concentric-circles example where the RBF kernel carves out a closed nonlinear boundary that the linear dual solver can't fit.
 
 ## Status
 
-Work in progress. More algorithms to follow.
+Work in progress. More algorithms are planned, along with shared evaluation utilities in `mlscratch.metrics` and `mlscratch.model_selection`.
