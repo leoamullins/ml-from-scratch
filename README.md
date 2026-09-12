@@ -84,12 +84,20 @@ See [`notebooks/tree_demo.ipynb`](notebooks/tree_demo.ipynb) for the canonical "
 
 ## Logistic regression
 
-`mlscratch/logistic_regression.py` implements `LogisticRegression`, a binary classifier fitted by maximizing log-likelihood via batch gradient descent.
+`mlscratch/logistic_regression.py` implements `LogisticRegression`, a binary classifier fitted by maximizing log-likelihood via batch gradient descent and `MultinomialRegression`, a classifier fitted with batch gradient descent.
 
 - `sigmoid(z)` — the logistic function, squashes `z` into `(0, 1)`.
 - `gradient_descent_log_likelihood` — runs gradient descent for `num_steps`, updating `w` and `b` at each step (`update_w_and_b_log_likelihood`) and logging binary cross-entropy loss.
 - `fit(X, y)` — learns `w` and `b` from training data, storing the loss history.
 - `predict(X)` — applies the sigmoid to `w · X + b` and thresholds at `positive_threshold`.
+
+### Multinomial Regression
+
+ This method computes the loss as regularised multinomial cross entropy
+ $$
+L = -\frac{1}{n} \sum_{i = 1}^{n} \sum_{k = 1}^{K} y_{ik} \log(p_{ik})
+ $$
+with batch gradient descent. This outputs logits in `_scores` for each class and then the `_softmax` function is used in the core loop.
 
 See [`notebooks/logistic_regression_demo.ipynb`](notebooks/logistic_regression_demo.ipynb) for the training curve and decision boundary.
 
