@@ -94,6 +94,7 @@ See [`notebooks/tree_demo.ipynb`](notebooks/tree_demo.ipynb) for the canonical "
 ### Multinomial Regression
 
 This method computes the loss as regularised multinomial cross entropy
+
 $$
 L = -\frac{1}{n} \sum_{i = 1}^{n} \sum_{k = 1}^{K} y_{ik} \log(p_{ik})
 $$
@@ -110,17 +111,17 @@ A linear classifier predicts via `sign(w · x + b)`. The distance from a point t
 
 - `SVMHardMargin` solves the primal QP
 
-  $$
+  ```math
   \min \frac{1}{2} \| \textbf{w} \|_2 ^ 2 \hspace{10pt} \text{s.t.} \hspace{10pt} y_i(\textbf{w} x_i + b) \geq 1
-  $$
+  ```
 
   directly. This assumes the two classes are linearly separable — with no separating hyperplane, no `(w, b)` satisfies every constraint and the QP is infeasible.
 
 - `SVMSoftMargin` handles non-separable data by adding a per-point slack $\xi_i$ that lets a point violate its margin, penalized by a cost `C`:
 
-$$
+  ```math
   \min \frac{1}{2} \| \textbf{w} \|_2 ^ 2 + C \sum_{i=1}^N \xi_i
-$$
+  ```
 
   `C` trades off margin width against how many points are allowed to be misclassified or fall inside the margin: large `C` penalizes slack heavily (behaving closer to hard-margin), small `C` tolerates more violations for a wider margin.
 
@@ -140,15 +141,15 @@ The dual touches the data only through the dot products $x_i \cdot x_j$, never t
 
 - `fit_RBF(X, y)` swaps in the **RBF (Gaussian) kernel**
 
-  $$
+  ```math
   K(x_i, x_j) = \exp\left(-\gamma \lVert x_i - x_j \rVert^2\right)
-  $$
+  ```
 
-  computed by `_rbf` via the expansion $\lVert x_i - x_j \rVert^2 = \lVert x_i \rVert^2 + \lVert x_j \rVert^2 - 2\, x_i \cdot x_j$, which avoids looping over pairs. This kernel implicitly maps each point into an infinite-dimensional feature space, so `w` can no longer be formed explicitly — everything has to stay expressed in terms of `α`, `y`, and the kernel. `predict_RBF(X)` therefore evaluates the decision function directly against the stored training points (the support vectors):
+  computed by `_rbf` via the expansion $\lVert x_i - x_j \rVert^2 = \lVert x_i \rVert^2 + \lVert x_j \rVert^2 - 2\thinspace x_i \cdot x_j$, which avoids looping over pairs. This kernel implicitly maps each point into an infinite-dimensional feature space, so `w` can no longer be formed explicitly — everything has to stay expressed in terms of `α`, `y`, and the kernel. `predict_RBF(X)` therefore evaluates the decision function directly against the stored training points (the support vectors):
 
-  $$
+  ```math
   f(x) = \text{sign}\left(\sum_{i=1}^N \alpha_i y_i K(x, x_i) + b\right)
-  $$
+  ```
 
   `γ` controls how tightly each support vector's influence is localized: small `γ` gives smooth, near-linear boundaries; large `γ` lets the boundary hug individual points, risking overfitting.
 
