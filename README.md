@@ -73,6 +73,7 @@ The `-s` flag shows the numbers each test prints; without it pytest hides them. 
 | mlscratch | scikit-learn | Data | Result |
 | --- | --- | --- | --- |
 | `LinearRegression` | `LinearRegression()` | `make_regression`, 200 × 5 | coefficients match to 9.9e-14 |
+| `LinearRegression.fit_poly(degree=2)` | `PolynomialFeatures(degree=2, include_bias=False)` + `LinearRegression()` | `make_regression`, 200 × 5 (20 polynomial features) | coefficients match to 1.4e-13 |
 | `LogisticRegression` | `LogisticRegression(C=np.inf)` (no penalty) | overlapping classes, 500 × 4 | coefficients match to 3.6e-9; 100% prediction agreement |
 | `MultinomialRegression` | `LogisticRegression(C=1/(nλ))` | iris, 150 × 4 | coefficients match to 4.6e-7; 100% prediction agreement |
 | `SVMHardMargin` | `SVC(kernel="linear", C=1e3)` | separable blobs, 100 × 2 | coefficients match to 2.9e-7 |
@@ -98,7 +99,22 @@ The `-s` flag shows the numbers each test prints; without it pytest hides them. 
 
 - `fit(X, y)` — solves for weights and bias directly.
 - `predict(X)` — applies the learned weights.
-- `fit_poly(X, y, degree)` / `predict_poly(X)` — expands `X` into polynomial features (`x, x², …, x^degree`) via `poly_features`, then reuses the same linear solver. This is how polynomial regression is achieved without a separate algorithm: it's still linear regression, just on transformed features.
+- `fit_poly(X, y, degree=2)` / `predict_poly(X)` — polynomial regression (see below).
+
+### Polynomial regression
+
+Polynomial regression isn't a separate algorithm. It's the same linear solver run on expanded features: `fit_poly` passes `X` through `poly_features`, stores `degree`, and calls `fit`, and `predict_poly` expands new inputs with the same degree before calling `predict`. The model is still linear in its weights; only the features are nonlinear.
+
+`poly_features(X, degree)` builds every product of up to `degree` input features: the features themselves, their powers, and the cross terms between them. For two features and `degree=2`, that's x₁, x₂, x₁², x₁x₂, x₂²:
+
+```python
+LinearRegression.poly_features(np.array([[2.0, 3.0]]), degree=2)
+# array([[2., 3., 4., 6., 9.]])
+```
+
+It gets these from `itertools.combinations_with_replacement`, which lists every group of feature indices of size 1 to `degree`, and multiplies each group's columns together. The columns come out in the same order as scikit-learn's `PolynomialFeatures(include_bias=False)`. There's no constant column because `fit` already adds the intercept.
+
+The number of features grows quickly: n inputs at degree d give C(n + d, d) − 1 columns, so 5 inputs give 20 columns at degree 2 and 55 at degree 3.
 
 See [`notebooks/linear_regression_demo.ipynb`](notebooks/linear_regression_demo.ipynb) for a straight-line fit and a cubic fit.
 
