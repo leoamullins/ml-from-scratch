@@ -23,3 +23,8 @@ notebooks = [
     "ipykernel",
     "scikit-learn",
 ]
+# scikit-learn is only a reference to test against; mlscratch itself never imports it.
+test = ["pytest", "scikit-learn"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

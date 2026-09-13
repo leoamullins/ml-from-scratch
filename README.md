@@ -1,6 +1,6 @@
 # ml-from-scratch
 
-Classic machine learning algorithms implemented from scratch in Python with NumPy and pandas, plus `cvxopt` to solve the SVM quadratic programs. They're packaged as an installable library, `mlscratch`, and each one has a Jupyter notebook demo. The demos use scikit-learn only for example datasets and accuracy scores; the library itself doesn't depend on it.
+Classic machine learning algorithms implemented from scratch in Python with NumPy and pandas, plus `cvxopt` to solve the SVM quadratic programs. They're packaged as an installable library, `mlscratch`, and each one has a Jupyter notebook demo. scikit-learn appears only in the demos (for example datasets) and the tests (as a reference to check results against); the library itself never imports it.
 
 ## Project structure
 
@@ -18,6 +18,8 @@ ml-from-scratch/
 │   ├── logistic_regression_demo.ipynb
 │   ├── svm_demo.ipynb
 │   └── tree_demo.ipynb
+├── tests/
+│   └── test_vs_sklearn.py          # checks each model against scikit-learn
 └── pyproject.toml                  # package metadata & dependencies
 ```
 
@@ -35,6 +37,7 @@ The `-e` (editable) install makes `import mlscratch` load directly from the `mls
 
 - `plot`: matplotlib. The core library doesn't need it; only `DecisionTreeID3.plot()` uses it.
 - `notebooks`: `plot` plus `ipykernel` and scikit-learn, which the demo notebooks need.
+- `test`: pytest and scikit-learn, for the tests.
 
 Use `pip install -e .` for the core library alone (NumPy, pandas, cvxopt).
 
@@ -55,6 +58,35 @@ model.predict(np.array([5.0]))  # array([10.85])
 ```
 
 To run the demos, open any notebook in [`notebooks/`](notebooks/) in VS Code or another Jupyter frontend, and select the `.venv` kernel. To use Jupyter in the browser, run `pip install jupyterlab` and then `jupyter lab notebooks/`.
+
+## Validation against scikit-learn
+
+[`tests/test_vs_sklearn.py`](tests/test_vs_sklearn.py) fits each model and its scikit-learn counterpart on the same data, prints how close they are, and checks that they agree.
+
+```bash
+pip install -e ".[test]"
+pytest -s
+```
+
+The `-s` flag shows the numbers each test prints; without it pytest hides them. Current results:
+
+| mlscratch | scikit-learn | Data | Result |
+| --- | --- | --- | --- |
+| `LinearRegression` | `LinearRegression()` | `make_regression`, 200 × 5 | coefficients match to 9.9e-14 |
+| `LogisticRegression` | `LogisticRegression(C=np.inf)` (no penalty) | overlapping classes, 500 × 4 | coefficients match to 3.6e-9; 100% prediction agreement |
+| `MultinomialRegression` | `LogisticRegression(C=1/(nλ))` | iris, 150 × 4 | coefficients match to 4.6e-7; 100% prediction agreement |
+| `SVMHardMargin` | `SVC(kernel="linear", C=1e3)` | separable blobs, 100 × 2 | coefficients match to 2.9e-7 |
+| `SVMSoftMargin` | `SVC(kernel="linear", C=1)` | overlapping classes, 200 × 4 | coefficients match to 1.7e-6; 100% prediction agreement |
+| `SVM(kernel="linear")` | `SVC(kernel="linear", C=1)` | overlapping classes, 200 × 4 | 100% prediction agreement on 2,000 new points; 100% of support vectors shared; coefficients match to 1.7e-6 |
+| `SVM(kernel="rbf")` | `SVC(kernel="rbf", C=1, gamma=1)` | `make_moons`, 200 × 2 | 100% prediction agreement on 2,000 new points; decision function matches to 3.3e-4; 98.4% of support vectors shared |
+| `DecisionTreeID3` | `DecisionTreeClassifier(criterion="entropy", max_depth=6)` | 6 binary features, 10% label noise | 96.5% prediction agreement on 200 test rows; 100% outside tied leaves |
+
+"Coefficients match to x" means the largest absolute difference between the weights. The tests also check that the intercepts match.
+
+- **Logistic and multinomial regression** are run to convergence (`learning_rate=1.0`, `tol=0`). With the default `tol=1e-6` and iteration limits, gradient descent stops before it reaches the optimum.
+- **Multinomial regression** minimises mean cross-entropy + λ/2 ‖W‖² on standardised features. scikit-learn minimises C × total cross-entropy + ½ ‖W‖², which is the same objective when C = 1/(nλ), so it's fitted on the same standardised features with that C.
+- **The one RBF support vector that isn't shared** is an extra one in `SVM`. It lies on the edge of the margin, where its α should be exactly 0. cvxopt's solution leaves it at 2e-5, just above the 1e-5 cutoff, while scikit-learn's solver sets it to 0.
+- **The tree** is compared on binary features, where ID3's one-branch-per-value split and scikit-learn's yes/no split are the same split. Every disagreement is in a leaf with equal class counts: scikit-learn predicts the smaller label there, and ID3 whichever label pandas lists first.
 
 ## Linear regression
 
