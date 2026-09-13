@@ -1,4 +1,5 @@
 import numpy as np
+from itertools import combinations_with_replacement
 
 
 class LinearRegression:
@@ -42,5 +43,13 @@ class LinearRegression:
 
     @staticmethod
     def poly_features(x: np.ndarray, degree: int) -> np.ndarray:
-        "create poly features"
-        return np.column_stack([x**d for d in range(1, degree + 1)])
+        "create poly features and cross terms"
+        x = np.asarray(x, dtype=float)
+        if x.ndim == 1:
+            x = x.reshape(-1, 1)
+        cols = [
+            np.prod(x[:, idx], axis=1)
+            for d in range(1, degree + 1)
+            for idx in combinations_with_replacement(range(x.shape[1]), d)
+        ]
+        return np.column_stack(cols)

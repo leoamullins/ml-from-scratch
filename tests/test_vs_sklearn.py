@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 from sklearn import linear_model
+from sklearn import pipeline
+from sklearn.preprocessing import PolynomialFeatures
 from sklearn.datasets import (
     load_iris,
     make_blobs,
@@ -66,6 +68,26 @@ def test_linear_regression():
     print(f"LinearRegression max coef diff: {coef_diff:.1e}")
     assert mine.weights == pytest.approx(ref.coef_, abs=1e-8)
     assert mine.bias == pytest.approx(ref.intercept_, abs=1e-8)
+
+
+def test_polynomial_regression():
+    X, y = make_regression(
+        n_samples=200, n_features=5, noise=10.0, random_state=0
+    )  # using same random regression dataset
+
+    mine = LinearRegression()
+    mine.fit_poly(X, y)
+    ref = pipeline.make_pipeline(
+        PolynomialFeatures(degree=2, include_bias=False),
+        linear_model.LinearRegression(),
+    )
+    ref.fit(X, y)
+
+    lr = ref.named_steps["linearregression"]
+    coef_diff = np.abs(mine.weights - lr.coef_).max()
+    print(f"LinearRegression max coef diff: {coef_diff:.1e}")
+    assert mine.weights == pytest.approx(lr.coef_, abs=1e-8)
+    assert mine.bias == pytest.approx(lr.intercept_, abs=1e-8)
 
 
 def test_logistic_regression():
